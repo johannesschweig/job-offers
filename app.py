@@ -15,7 +15,7 @@ if os.path.exists("credentials.json"):
     creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 else:
     # Streamlit secrets
-    credentials_dict = st.secrets["google_service_account"]
+    credentials_dict = dict(st.secrets["google_service_account"])
     creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(json.dumps(credentials_dict)), scope)
 
 # Authorize with Google Sheets
