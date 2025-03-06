@@ -4,3 +4,4 @@
 # Except app.py
 !.gitignore
 !app.py
+!requirements.txt
