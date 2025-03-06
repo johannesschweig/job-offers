@@ -127,39 +127,44 @@ platform_attribution_all_time = data['Platform'].value_counts()
 platform_attribution_last_month = data_last_month['Platform'].value_counts()
 platform_attribution_last_3_months = data_last_3_months['Platform'].value_counts()
 
-# Create a DataFrame to hold the counts for each time frame
+# Calculate total applications for each time frame
+total_all_time = platform_attribution_all_time.sum()
+total_last_month = platform_attribution_last_month.sum()
+total_last_3_months = platform_attribution_last_3_months.sum()
+
+# Create a DataFrame to hold the counts for each time frame, then convert counts to percentages
 platform_attribution_data = pd.DataFrame({
-    'Platform': platform_attribution_all_time.index,
-    'All Time': platform_attribution_all_time.values,
-    'Last 30 Days': platform_attribution_last_month.values,
-    'Last 90 Days': platform_attribution_last_3_months.values
+    'platform': platform_attribution_all_time.index,
+    'all time': (platform_attribution_all_time.values / total_all_time) * 100,
+    'last 30 days': (platform_attribution_last_month.values / total_last_month) * 100,
+    'last 90 days': (platform_attribution_last_3_months.values / total_last_3_months) * 100
 }).fillna(0)
 
-# Create a long-format DataFrame for Plotly (to plot stacked bar chart)
-platform_attribution_long = platform_attribution_data.melt(id_vars='Platform', 
-                                                           value_vars=['Last 30 Days', 'Last 90 Days', 'All Time'], 
-                                                           var_name='Time Period', 
-                                                           value_name='Number of Applications')
+# create a long-format dataframe for plotly (to plot stacked bar chart)
+platform_attribution_long = platform_attribution_data.melt(id_vars='platform', 
+                                                           value_vars=['last 30 days', 'last 90 days', 'all time'], 
+                                                           var_name='time period', 
+                                                           value_name='percentage of applications')
 
 # Plot the stacked bar chart with Plotly
 fig = px.bar(platform_attribution_long, 
-             x='Time Period', 
-             y='Number of Applications', 
-             color='Platform',
-             title='Platform Attribution by Time Range',
+             x='time period', 
+             y='percentage of applications', 
+             color='platform',
+             title='platform attribution',
              color_discrete_map={
-                 'Upwork': '#ff9999', 
-                 'LinkedIn': '#66b3ff', 
-                 'Project': '#99ff99', 
-                 'Uplink': '#ffcc99'
+                 'upwork': '#14a800', 
+                 'linkedin': '#3463bd', 
+                 'project': '#95c7fb', 
+                 'uplink': '#e9664c'
              })
 
 # Customize the layout for better readability
 fig.update_layout(
     xaxis_title='Time Period',
-    yaxis_title='Number of Applications',
+    yaxis_title='Percentage of Applications',
     barmode='stack',
-    title='Platform Attribution by Time Range'
+    title='Platform Attribution by Time Range (in Percent)'
 )
 
 # Show the chart in Streamlit
