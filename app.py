@@ -8,7 +8,7 @@ import json
 import os  
 from datetime import datetime, timedelta
 
-
+st.title("Job offers analytics")
 
 # Google Sheets authentication
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
