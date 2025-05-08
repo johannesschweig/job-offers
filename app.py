@@ -1,11 +1,14 @@
 import streamlit as st  
 import pandas as pd  
 import plotly.express as px  
+import plotly.graph_objects as go
 import gspread  
 from oauth2client.service_account import ServiceAccountCredentials  
 import json  
 import os  
 from datetime import datetime, timedelta
+
+
 
 # Google Sheets authentication
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -96,68 +99,92 @@ fig.update_layout(barmode='group', xaxis_title="Status", yaxis_title="Percentage
 st.plotly_chart(fig)
 
 ### Chart 2: Application output
-first_job_ad_date = datetime(2024, 3, 7)
-months_difference = (today - first_job_ad_date).days / 30
+fig = go.Figure(go.Indicator(
+    mode = "number+delta",
+    value = len(data_last_month),
+    delta = {'position': "top", 'reference': round(len(data_last_3_months) / 3)},
+    domain = {'x': [0, 1], 'y': [0, 1]},
+    title = {'text': "Applied projects in the last 30 days<br><span style='font-size:0.8em;color:gray'>vs. in the last 3 months</span>"},
+))
 
-total_counts = pd.DataFrame({
-    'Time Frame': ['Last 30 Days', 'Last 90 Days', 'All Time'],
-    'Applied Projects': [
-        len(data_last_month),
-        len(data_last_3_months) / 3,
-        len(data) / months_difference
-    ]
-})
-
-fig = px.line(total_counts, x='Time Frame', y='Applied Projects', title='Applied Projects per Month', color_discrete_sequence=["#818cf8"] ) # indigo-400
-fig.update_yaxes(rangemode='tozero')
 st.plotly_chart(fig)
 
 ### Chart 3: Attribution
 
-# Count the number of applications per platform for each time frame
-platform_attribution_all_time = data['Platform'].value_counts()
-platform_attribution_last_month = data_last_month['Platform'].value_counts()
-platform_attribution_last_3_months = data_last_3_months['Platform'].value_counts()
+# Calculate platform counts for each time frame
+platform_counts_last_30_days = data_last_month['Platform'].value_counts()
+platform_counts_last_3_months = data_last_3_months['Platform'].value_counts()
+platform_counts_overall = data['Platform'].value_counts()
 
-# Calculate total applications for each time frame
-total_all_time = platform_attribution_all_time.sum()
-total_last_month = platform_attribution_last_month.sum()
-total_last_3_months = platform_attribution_last_3_months.sum()
+# Get the union of all platforms to ensure consistent indexing
+all_platforms = set(platform_counts_last_30_days.index).union(
+    platform_counts_last_3_months.index,
+    platform_counts_overall.index
+)
 
-# Create a DataFrame to hold the counts for each time frame, then convert counts to percentages
+# Reindex the counts to include all platforms and fill missing values with 0
+platform_counts_last_30_days = platform_counts_last_30_days.reindex(all_platforms, fill_value=0)
+platform_counts_last_3_months = platform_counts_last_3_months.reindex(all_platforms, fill_value=0)
+platform_counts_overall = platform_counts_overall.reindex(all_platforms, fill_value=0)
+
+# Create the DataFrame
 platform_attribution_data = pd.DataFrame({
-    'platform': platform_attribution_all_time.index,
-    'all time': (platform_attribution_all_time.values / total_all_time) * 100,
-    'last 30 days': (platform_attribution_last_month.values / total_last_month) * 100,
-    'last 90 days': (platform_attribution_last_3_months.values / total_last_3_months) * 100
-}).fillna(0)
+    'Platform': list(all_platforms) * 3,
+    'Time Frame': ['Last 30 Days'] * len(all_platforms) +
+                  ['Last 3 Months'] * len(all_platforms) +
+                  ['Overall'] * len(all_platforms),
+    'Total': list(platform_counts_last_30_days.values) +
+             list(platform_counts_last_3_months.values) +
+             list(platform_counts_overall.values)
+})
 
-# create a long-format dataframe for plotly (to plot stacked bar chart)
-platform_attribution_long = platform_attribution_data.melt(id_vars='platform', 
-                                                           value_vars=['last 30 days', 'last 90 days', 'all time'], 
-                                                           var_name='time period', 
-                                                           value_name='percentage of applications')
+percentages = platform_attribution_data.groupby('Time Frame')['Total'].transform(
+    lambda x: (x / x.sum()) * 100
+)
 
-# Plot the stacked bar chart with Plotly
-fig = px.bar(platform_attribution_long, 
-             x='time period', 
-             y='percentage of applications', 
-             color='platform',
-             title='platform attribution',
-             color_discrete_map={
-                 'upwork': '#14a800', 
-                 'linkedin': '#3463bd', 
-                 'project': '#95c7fb', 
-                 'uplink': '#e9664c'
-             })
+platform_attribution_data['Percentage'] = percentages
 
-# Customize the layout for better readability
+
+
+# Define brand colors for the platforms
+platform_colors = {
+    "linkedin": "#0a66c2",  # LinkedIn blue
+    "project": "#21cda4",   # freelancermap teal
+    "slack": "#4a154b",     # Slack purple
+    "uplink": "#e9664c",    # uplink orange
+    "upwork": "#14a800",    # Upwork green
+}
+
+# Get the top 3 platforms for each time frame
+top_3_platforms = platform_attribution_data.groupby('Time Frame').apply(
+    lambda x: x.nlargest(3, 'Percentage')
+).reset_index(drop=True)
+
+time_frame_order = ["Last 30 Days", "Last 3 Months", "Overall"]
+
+# Create a horizontal bar chart with Time Frame on the y-axis
+fig = px.bar(
+    top_3_platforms,
+    x="Percentage",
+    y="Time Frame",
+    color="Platform",
+    orientation="h",
+    title="Top 3 Platforms",
+    labels={"Percentage": "Percentage (%)", "Platform": "Platform", "Time Frame": "Time Frame"},
+    color_discrete_map=platform_colors,
+    text="Percentage",
+    text_auto='.0f',
+)
+
+# Update layout for better readability
 fig.update_layout(
-    xaxis_title='Time Period',
-    yaxis_title='Percentage of Applications',
-    barmode='stack',
-    title='Platform Attribution'
+    xaxis_title="Percentage (%)",
+    yaxis_title="Time Frame",
+    barmode="group",
+    legend_title="Platform",
+    yaxis=dict(categoryorder="array", categoryarray=time_frame_order)  # Custom order for Time Frame
 )
 
 # Show the chart in Streamlit
 st.plotly_chart(fig)
+
