@@ -43,25 +43,21 @@ data_last_3_months = data[data['Date'] >= last_90_days_start]
 
 # Calculate percentages for different statuses (Inbound, Dialogue, Accepted, Declined) relative to the total applications
 def calculate_percentages(df):
-    total_projects = len(df)
     
     # Count the number of projects for each status
     inbound_count = (df['Inbound'] == "Yes").sum()
     dialogue_count = (df['Dialogue'] == "Yes").sum()
     accepted_count = (df['Accepted'] == "Yes").sum()
-    declined_count = (df['Declined'] == "Yes").sum()
 
     # Calculate percentages
-    inbound_percentage = (inbound_count / total_projects) * 100.0
-    dialogue_percentage = (dialogue_count / total_projects) * 100.0
-    accepted_percentage = (accepted_count / total_projects) * 100.0
-    declined_percentage = (declined_count / total_projects) * 100.0
+    inbound_percentage = (inbound_count / len(df)) * 100.0
+    dialogue_percentage = (dialogue_count / len(df)) * 100.0
+    accepted_percentage = (accepted_count / len(df)) * 100.0
     
     return {
         "Inbound": inbound_percentage,
         "Dialogue": dialogue_percentage,
         "Accepted": accepted_percentage,
-        "Declined": declined_percentage
     }
 
 # Create data for plotting
@@ -71,53 +67,49 @@ overall_percentages = calculate_percentages(data)
 
 # Create a DataFrame for easy plotting
 percentages_data = pd.DataFrame({
-    "Time Period": ["Last 30 Days", "Last 3 Months", "Overall"],
-    "Inbound": [last_month_percentages["Inbound"], last_3_months_percentages["Inbound"], overall_percentages["Inbound"]],
-    "Dialogue": [last_month_percentages["Dialogue"], last_3_months_percentages["Dialogue"], overall_percentages["Dialogue"]],
-    "Accepted": [last_month_percentages["Accepted"], last_3_months_percentages["Accepted"], overall_percentages["Accepted"]],
-    "Declined": [last_month_percentages["Declined"], last_3_months_percentages["Declined"], overall_percentages["Declined"]]
+    "Status": ["Dialogue", "Inbound", "Accepted"],
+    "Last 30 Days": [last_month_percentages["Dialogue"], last_month_percentages["Inbound"], last_month_percentages["Accepted"]],
+    "Last 3 Months": [last_3_months_percentages["Dialogue"], last_3_months_percentages["Inbound"], last_3_months_percentages["Accepted"]],
+    "Overall": [overall_percentages["Dialogue"], overall_percentages["Inbound"], overall_percentages["Accepted"]],
 })
 
 # Reshape the data for easier plotting (long format)
-percentages_data_long = percentages_data.melt(id_vars="Time Period", var_name="Status", value_name="Percentage")
+percentages_data_long = percentages_data.melt(id_vars="Status", var_name="Time Period", value_name="Percentage")
 
 # Plot the bar chart
 fig = px.bar(percentages_data_long, 
-             x="Time Period", 
+             x="Status", 
              y="Percentage", 
-             color="Status", 
-             title="Project success",
-             labels={"Percentage": "Percentage (%)", "Time Period": "Time Period", "Status": "Project Status"},
+             color="Time Period", 
+             title="Pipeline Status",
+             labels={"Percentage": "Percentage (%)",  "Status": "Project Status", "Time Period": "Time Period"},
              color_discrete_map={
-                 "Inbound": "lightblue", 
-                 "Dialogue": "blue", 
-                 "Accepted": "green", 
-                 "Declined": "red"
-             })
+                 "Last 30 Days": "#c4b5fd", # indigo-200 
+                 "Last 3 Months": "#818cf8", # indigo-400
+                 "Overall": "#4f46e5", # indigo-600
+             },
+             text_auto='.0f')
 
-fig.update_layout(barmode='group', xaxis_title="Time Period", yaxis_title="Percentage (%)")
+fig.update_layout(barmode='group', xaxis_title="Status", yaxis_title="Percentage (%)")
 
 # Show the chart in Streamlit
 st.plotly_chart(fig)
 
 ### Chart 2: Application output
-
-# Count the number of projects for each time frame
-total_last_30_days = len(data_last_month)
-total_last_90_days = len(data_last_3_months) / 3
 first_job_ad_date = datetime(2024, 3, 7)
-days_difference = (today - first_job_ad_date).days
-months_difference = days_difference / 30
-total_all_time = len(data) / months_difference
+months_difference = (today - first_job_ad_date).days / 30
 
-# Create a DataFrame for the total counts
 total_counts = pd.DataFrame({
-    'Time Frame': [ 'Last 30 Days', 'Last 90 Days', 'All Time'],
-    'Applied Projects': [total_last_30_days, total_last_90_days, total_all_time]
+    'Time Frame': ['Last 30 Days', 'Last 90 Days', 'All Time'],
+    'Applied Projects': [
+        len(data_last_month),
+        len(data_last_3_months) / 3,
+        len(data) / months_difference
+    ]
 })
 
-# Plot the bar chart
-fig = px.bar(total_counts, x='Time Frame', y='Applied Projects', title='Applied Projects per Month')
+fig = px.line(total_counts, x='Time Frame', y='Applied Projects', title='Applied Projects per Month', color_discrete_sequence=["#818cf8"] ) # indigo-400
+fig.update_yaxes(rangemode='tozero')
 st.plotly_chart(fig)
 
 ### Chart 3: Attribution
@@ -164,7 +156,7 @@ fig.update_layout(
     xaxis_title='Time Period',
     yaxis_title='Percentage of Applications',
     barmode='stack',
-    title='Platform Attribution by Time Range (in Percent)'
+    title='Platform Attribution'
 )
 
 # Show the chart in Streamlit
